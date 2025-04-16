@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Tarefas</title>
+    <style>
+        body {
+            font-family: Times New Roman, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .add-task {
+            background-color: #4caf50;
+            color: white;
+        }
+        .add-task-voice {
+            background-color: #3498db;
+            color: white;
+        }
+        .task-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 50px;
+        }
+        .task-item {
+            background: #fff;
+            margin: 5px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: grab;
+        }
+        .trash {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+        .trash img {
+            width: 30px;
+            height: 30px;
+        }
+        .trash.drag-over {
+            background-color: #c0392b;
+        }
+
+        /* Botão de microfone flutuante */
+        .voice-button {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: #3498db;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+
+        .voice-button img {
+            width: 30px;
+            height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerenciador de Tarefas</h1>
+        <button class="add-task" onclick="addTask()">Adicionar Tarefa ➕</button>
+        <button class="add-task-voice" onclick="addTaskByVoice()">Adicionar por Voz 🎤</button>
+        <ul id="taskList" class="task-list"></ul>
+    </div>
+
+    <!-- Botão de microfone flutuante -->
+    <div id="voiceButton" class="voice-button" onclick="addTaskByVoice()">
+        <img src="https://img.icons8.com/ios-filled/30/ffffff/microphone.png" alt="Microfone">
+    </div>
+
+    <!-- Lixeira -->
+    <div id="trash" class="trash">
+        <img src="https://img.icons8.com/ios-glyphs/30/ffffff/trash.png" alt="Lixeira">
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+
+        function saveTasks() {
+            localStorage.setItem("tasks", JSON.stringify(tasks));
+        }
+
+        function addTask() {
+            const task = prompt("Digite a tarefa para ser adicionada:");
+            if (task) {
+                tasks.push({ name: task, completed: false });
+                saveTasks();
+                showTasks();
+            }
+        }
+
+        async function addTaskByVoice() {
+            try {
+                alert("Aguarde... Capturando áudio!");
+
+                const response = await fetch('/audio', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.tarefa && data.tarefa !== "Não foi possível entender o áudio.") {
+                    tasks.push({ name: data.tarefa, completed: false });
+                    saveTasks();
+                    showTasks();
+                } else {
+                    alert("Erro: " + data.tarefa);
+                }
+            } catch (error) {
+                alert("Erro ao capturar áudio.");
+                console.error(error);
+            }
+        }
+
+        function showTasks() {
+            const taskList = document.getElementById("taskList");
+            taskList.innerHTML = "";
+            tasks.forEach((task, index) => {
+                const taskItem = document.createElement("li");
+                taskItem.className = "task-item";
+                taskItem.textContent = task.name + (task.completed ? " - Concluída ✅" : "");
+                taskItem.dataset.index = index;
+
+                taskItem.draggable = true;
+                taskItem.addEventListener("dragstart", handleDragStart);
+                taskItem.addEventListener("dragend", handleDragEnd);
+                taskItem.addEventListener("click", (event) => handleEditClick(event, taskItem));
+
+                taskList.appendChild(taskItem);
+            });
+        }
+
+        function handleDragStart(event) {
+            event.dataTransfer.setData("text/plain", event.target.dataset.index);
+            document.getElementById("trash").classList.add("drag-over");
+        }
+
+        function handleDragEnd() {
+            document.getElementById("trash").classList.remove("drag-over");
+        }
+
+        const trash = document.getElementById("trash");
+
+        trash.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            trash.classList.add("drag-over");
+        });
+
+        trash.addEventListener("dragleave", () => {
+            trash.classList.remove("drag-over");
+        });
+
+        trash.addEventListener("drop", (event) => {
+            event.preventDefault();
+            const index = event.dataTransfer.getData("text/plain");
+            tasks.splice(index, 1);
+            saveTasks();
+            showTasks();
+            trash.classList.remove("drag-over");
+        });
+
+        function handleEditClick(event, taskItem) {
+            const index = taskItem.dataset.index;
+            const newName = prompt("Edite a tarefa:", tasks[index].name);
+            if (newName) {
+                tasks[index].name = newName;
+                saveTasks();
+                showTasks();
+            }
+        }
+
+        showTasks();
+    </script>
+</body>
+</html>
